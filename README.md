@@ -1,7 +1,7 @@
 # Ceph Handbook
 
 ## Ceph Cluster Environment Setup
-`ceph-deploy` will be used to create a 3 node cluster in this handbook. The IP addresses of the cluster is as below:
+ceph-deploy will be used to create a 3 node cluster in this handbook. The IP addresses of the cluster is as below:
 
 | Hostname      | IP Address     |
 |---------------|----------------|
@@ -63,7 +63,7 @@ $ cat /etc/hosts
 
 ### Setup Admin(Deployer) Node
 
-Install `ceph-deploy` on the admin node. Replace `{ceph-stable-release}` to a stable release. The latest stable release is mimic by the time when this is written.
+Install ceph-deploy on the admin node. Replace `{ceph-stable-release}` to a stable release. The latest stable release is mimic by the time when this is written.
 
 ```shell
 $ cat << EOM > /etc/yum.repos.d/ceph.repo
@@ -178,7 +178,6 @@ ceph version 13.2.4 (b10be4d44915a4d78a8e06aa31919e74927b142e) mimic (stable)
 
 ### Install Ceph Monitor
 
-
 ```shell
 $ ceph-deploy mon create-initial
 [ceph_deploy.conf][DEBUG ] found configuration file at: /home/cephd/.cephdeploy.conf
@@ -231,7 +230,71 @@ $ ps -ef | grep ceph
 ceph       14152       1  0 21:47 ?        00:00:00 /usr/bin/ceph-mon -f --cluster ceph --id ceph-mon --setuser ceph --setgroup ceph
 ```
 
-To stop the monitor, run `stop ceph-mon-all` command
+The Ceph monitor is setup as a `systemd` daemon service. To stop it, use `systemctl stop ceph-mon@ceph-mon.service`.
+
+> Note: If you are using Debian distros Linux, use `service stop` command. Also, the service name may vary between different versions of Ceph so you need to figure out the exact service name by youself.
+
+### Distribute the Keys
+Use ceph-deploy to copy the configuration file and admin key to your admin node and your Ceph Nodes so that you can use the ceph CLI without having to specify the monitor address and ceph.client.admin.keyring each time you execute a command.
+
+```shell
+$ ceph-deploy admin ceph-mon node3 node4
+[ceph_deploy.conf][DEBUG ] found configuration file at: /home/cephd/.cephdeploy.conf
+[ceph_deploy.cli][INFO  ] Invoked (2.0.1): /bin/ceph-deploy admin ceph-mon node3 node4
+[ceph_deploy.cli][INFO  ] ceph-deploy options:
+[ceph_deploy.cli][INFO  ]  username                      : None
+[ceph_deploy.cli][INFO  ]  verbose                       : False
+[ceph_deploy.cli][INFO  ]  overwrite_conf                : False
+[ceph_deploy.cli][INFO  ]  quiet                         : False
+[ceph_deploy.cli][INFO  ]  cd_conf                       : <ceph_deploy.conf.cephdeploy.Conf instance at 0x7fa6cd4ff368>
+[ceph_deploy.cli][INFO  ]  cluster                       : ceph
+[ceph_deploy.cli][INFO  ]  client                        : ['ceph-mon', 'node3', 'node4']
+[ceph_deploy.cli][INFO  ]  func                          : <function admin at 0x7fa6cdda15f0>
+[ceph_deploy.cli][INFO  ]  ceph_conf                     : None
+[ceph_deploy.cli][INFO  ]  default_release               : False
+[ceph_deploy.admin][DEBUG ] Pushing admin keys and conf to ceph-mon
+[ceph-mon][DEBUG ] connection detected need for sudo
+[ceph-mon][DEBUG ] connected to host: ceph-mon
+[ceph-mon][DEBUG ] detect platform information from remote host
+[ceph-mon][DEBUG ] detect machine type
+[ceph-mon][DEBUG ] write cluster configuration to /etc/ceph/{cluster}.conf
+[ceph_deploy.admin][DEBUG ] Pushing admin keys and conf to node3
+[node3][DEBUG ] connection detected need for sudo
+[node3][DEBUG ] connected to host: node3
+[node3][DEBUG ] detect platform information from remote host
+[node3][DEBUG ] detect machine type
+[node3][DEBUG ] write cluster configuration to /etc/ceph/{cluster}.conf
+[ceph_deploy.admin][DEBUG ] Pushing admin keys and conf to node4
+[node4][DEBUG ] connection detected need for sudo
+[node4][DEBUG ] connected to host: node4
+[node4][DEBUG ] detect platform information from remote host
+[node4][DEBUG ] detect machine type
+[node4][DEBUG ] write cluster configuration to /etc/ceph/{cluster}.conf
+```
+
+### Install Ceph Mgr
+
+From Ceph Luminous (12.x) release, the Ceph Manager daemon is required to run alongside monitor daemons to provide additional monitoring services.
+
+```shell
+$ ceph-deploy mgr create ceph-mon
+[ceph_deploy.conf][DEBUG ] found configuration file at: /home/cephd/.cephdeploy.conf
+[ceph_deploy.cli][INFO  ] Invoked (2.0.1): /bin/ceph-deploy mgr create ceph-mon
+[ceph_deploy.cli][INFO  ] ceph-deploy options:
+...
+[ceph-mon][INFO  ] Running command: sudo ceph --cluster ceph --name client.bootstrap-mgr --keyring /var/lib/ceph/bootstrap-mgr/ceph.keyring auth get-or-create mgr.ceph-mon mon allow profile mgr osd allow * mds allow * -o /var/lib/ceph/mgr/ceph-ceph-mon/keyring
+[ceph-mon][INFO  ] Running command: sudo systemctl enable ceph-mgr@ceph-mon
+[ceph-mon][INFO  ] Running command: sudo systemctl start ceph-mgr@ceph-mon
+[ceph-mon][INFO  ] Running command: sudo systemctl enable ceph.target
+```
+
+From the log, we can see `ceph-mgr@ceph-mon` has been created and started. Check its running status on `ceph-mon` node:
+
+```shell
+ceph       15394  0.0  3.9 486588 39808 ?        Ssl  10:58   0:03 /usr/bin/ceph-mon -f --cluster ceph --id ceph-mon --setuser ceph --setgroup ceph
+ceph       15793  0.4  8.3 712972 84556 ?        Ssl  12:04   0:04 /usr/bin/ceph-mgr -f --cluster ceph --id ceph-mon --setuser ceph --setgroup ceph
+```
+
 ### Install Ceph OSD Nodes
 
-So far, we have successfully installed and started Ceph Monitor.
+So far, we have successfully installed Ceph Monitor and Manager. The next step is to add OSDs.
