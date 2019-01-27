@@ -278,6 +278,7 @@ From Ceph Luminous (12.x) release, the Ceph Manager daemon is required to run al
 
 ```shell
 $ ceph-deploy mgr create ceph-mon
+# output
 [ceph_deploy.conf][DEBUG ] found configuration file at: /home/cephd/.cephdeploy.conf
 [ceph_deploy.cli][INFO  ] Invoked (2.0.1): /bin/ceph-deploy mgr create ceph-mon
 [ceph_deploy.cli][INFO  ] ceph-deploy options:
@@ -297,4 +298,27 @@ ceph       15793  0.4  8.3 712972 84556 ?        Ssl  12:04   0:04 /usr/bin/ceph
 
 ### Install Ceph OSD Nodes
 
-So far, we have successfully installed Ceph Monitor and Manager. The next step is to add OSDs.
+So far, we have successfully installed Ceph Monitor and Manager. The next step is to install OSDs, the actual storage nodes. Before this can be done, it is required that an empty disk is installed for the storage. We can use `fdisk -l` to list all disks and check their size etc. In my environment, the disks on node3 and node4 are called `/dev/sdb`.
+
+```shell
+$ ceph-deploy osd create --data /dev/sdb node3
+# output
+...
+[ceph_deploy.osd][DEBUG ] Host node3 is now ready for osd use.
+
+$ ceph-deploy osd create --data /dev/sdb node4
+...
+[ceph_deploy.osd][DEBUG ] Host node4 is now ready for osd use.
+```
+And ssh to the node to double check the status of the node.
+```shell
+$ ssh node3
+$ sudo ceph health
+HEALTH_OK
+```
+
+### Install Ceph Metadata
+
+```shell
+$ ceph-deploy mds create node3
+```
