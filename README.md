@@ -1,6 +1,9 @@
 # Ceph Handbook
 
+For a quick start, we will use ceph-deploy tool to create a basic cluster with 1 node Ceph Monitor and 2 nodes Ceph OSDs. 
+
 ## Ceph Cluster Environment Setup
+
 ceph-deploy will be used to create a 3 node cluster in this handbook. The IP addresses of the cluster is as below:
 
 | Hostname      | IP Address     |
@@ -61,6 +64,19 @@ $ cat /etc/hosts
 
 > Note: node3 and node4 have `node1` and `node2` in their `/etc/hosts` file because these two nodes are setup as Kubernetes minions and storage solutions for the cluster. Please refer to my [kubernetes-handbook](https://github.com/shawnsong/kubernetes-handbook) for more details.
 
+If Ceph was installed before, we can use below command to clean up the previous setup and start over again.
+
+```shell
+# remove previously installed ceph binarary
+$ ceph-deploy purge node1 node2
+# remove ceph node data
+$ ceph-deploy purgedata node1 node2
+# remove keys
+$ ceph-deploy forgetkeys
+# remove current directory ceph-deploy generated files
+$ rm ceph.*
+```
+
 ### Setup Admin(Deployer) Node
 
 Install ceph-deploy on the admin node. Replace `{ceph-stable-release}` to a stable release. The latest stable release is mimic by the time when this is written.
@@ -114,19 +130,10 @@ $ ssh-copy-id cephd@node4
 After the ssh key is copied to all nodes, try to ssh to each node. This time, no password should be required. If it still requires password, please check if each step is done correctly. Otherwise, ceph-deploy will not work correctly.
 
 ### Install Ceph Node
-If Ceph was installed before, use below command to clean the previous setup.
-```shell
-# remove previously installed ceph binarary
-$ ceph-deploy purge node1 node2
-# remove ceph node data
-$ ceph-deploy purgedata node1 node2
-# remove keys
-$ ceph-deploy forgetkeys
-# remove current directory ceph-deploy generated files
-$ rm ceph.*
-```
 
-Now, we have a clean environment for the cluster. Create a new folder `ceph-cluster` and enter this folder.
+Now, we have a clean environment ready for the cluster. ceph-deploy will generate all necessary keys and configuration files for the cluster at the directory where ceph-deploy is invoked. Hence, to keep the files organised, let's create a new folder called `ceph-cluster` and enter this folder.
+
+The first step is to generate the configuration files.  
 
 ```shell
 $ ceph-deploy new ceph-mon
@@ -142,9 +149,9 @@ auth_cluster_required = cephx
 auth_service_required = cephx
 auth_client_required = cephx
 ```
-Add `osd pool default size = 2` to `ceph.conf` file to indicate there are 2 OSD nodes in the cluster. 
+`ceph-mon` in the command is the hostname of the Ceph Monitor node. Also, we need to add `osd pool default size = 2` to `ceph.conf` file because we have 2 OSD nodes in the cluster. 
 
-Install Ceph on all nodes. 
+Now, install Ceph on all nodes. 
 
 ```shell
 $ ceph-deploy install nod3 node4 ceph-mon
@@ -169,7 +176,7 @@ $ ceph-deploy install nod3 node4 ceph-mon
 [ceph-mon][DEBUG ] ceph version 13.2.4 (b10be4d44915a4d78a8e06aa31919e74927b142e) mimic (stable)
 ```
 
-Please make sure all nodes have ceph installed correctly. This can be done by checking the ceph version:
+Please make sure all nodes (node3, node4, ceph-mon) have ceph installed correctly. This can be done by checking the ceph version. For example, on node3: 
 ```shell
 $ ssh node3
 $ ceph --version
@@ -322,3 +329,4 @@ HEALTH_OK
 ```shell
 $ ceph-deploy mds create node3
 ```
+
