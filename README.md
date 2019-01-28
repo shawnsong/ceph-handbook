@@ -2,7 +2,7 @@
 
 For a quick start, we will use ceph-deploy tool to create a basic cluster with 1 node Ceph Monitor and 2 nodes Ceph OSDs. 
 
-## Ceph Cluster Environment Setup
+## Environment Preparation
 
 ceph-deploy will be used to create a 3 node cluster in this handbook. The IP addresses of the cluster is as below:
 
@@ -77,7 +77,7 @@ $ ceph-deploy forgetkeys
 $ rm ceph.*
 ```
 
-### Setup Admin(Deployer) Node
+### Setup the Admin(Deployer) Node
 
 Install ceph-deploy on the admin node. Replace `{ceph-stable-release}` to a stable release. The latest stable release is mimic by the time when this is written.
 
@@ -97,21 +97,21 @@ $ sudo yum install ceph-deploy
 ```
 
 ### Setup Super User
-A super user is required to setup on all nodes for ceph-deploy to use. This super user needs to be granted permission to run `sudo` without typing the password. The username does not matter, as long as it is the same user across all nodes. I will use `cephd` for this tutorial.
+A super user is required to setup on all nodes for ceph-deploy to use. This super user needs to be granted permissions to run `sudo` without typing the password because ceph-deploy does not prompt for password during the installation. The username of the super user does not matter, as long as it is the same user across all nodes. I will use `cephd` for this handbook.
 
 Add `cephd` user on all nodes (admin, ceph-mon, node3 and node4):
 ```shell
-# Add cephd user
+# Add user cephd
 $ useradd -d /home/cephd -m cephd
 # Set password for cephd
 $ passwd cephd
 
-# Add sudo permission
+# Add no password sudo permission
 $ echo "cephd ALL = (root) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/cephd
 $ sudo chmod 0440 /etc/sudoers.d/cephd
 ```
 
-On admin node, switch user to `cephd`:
+On admin node, switch the current user to `cephd` and generate the ssh key for this user:
 ```shell
 $ su - cephd
 
@@ -119,7 +119,7 @@ $ ssh-keygen
 Generating public/private rsa key pair.
 ...
 ```
-Copy the key pair to monitor and osd nodes. This step requires password.
+Copy the key pair to the monitor and osd nodes. This step requires password.
 
 ```shell
 $ ssh-copy-id cephd@ceph-mon
@@ -127,11 +127,11 @@ $ ssh-copy-id cephd@node3
 $ ssh-copy-id cephd@node4
 ```
 
-After the ssh key is copied to all nodes, try to ssh to each node. This time, no password should be required. If it still requires password, please check if each step is done correctly. Otherwise, ceph-deploy will not work correctly.
+After the ssh key is copied to all nodes, try to ssh to each node. This time, no password should be required. If it still requires password, please check if the above steps are done correctly.
 
 ### Install Ceph Node
 
-Now, we have a clean environment ready for the cluster. ceph-deploy will generate all necessary keys and configuration files for the cluster at the directory where ceph-deploy is invoked. Hence, to keep the files organised, let's create a new folder called `ceph-cluster` and enter this folder.
+Now, we have a clean environment ready for the cluster. ceph-deploy will generate all necessary keys and configuration files for the cluster in the directory where ceph-deploy is invoked. Hence, to keep the files organised, let's create a new folder called `ceph-cluster` and enter this folder.
 
 The first step is to generate the configuration files.  
 
@@ -183,7 +183,7 @@ $ ceph --version
 ceph version 13.2.4 (b10be4d44915a4d78a8e06aa31919e74927b142e) mimic (stable)
 ```
 
-### Install Ceph Monitor
+### Install Ceph Monitor (mon)
 
 ```shell
 $ ceph-deploy mon create-initial
@@ -279,7 +279,7 @@ $ ceph-deploy admin ceph-mon node3 node4
 [node4][DEBUG ] write cluster configuration to /etc/ceph/{cluster}.conf
 ```
 
-### Install Ceph Mgr
+### Install Ceph Manager (mgr)
 
 From Ceph Luminous (12.x) release, the Ceph Manager daemon is required to run alongside monitor daemons to provide additional monitoring services.
 
@@ -324,9 +324,47 @@ $ sudo ceph health
 HEALTH_OK
 ```
 
-### Install Ceph Metadata
+### Add a Ceph Metadata Server (MDS) - Optional
+
+Ceph Metadata Servers is only required by Ceph File System. Ceph Block Devices and Ceph Object Storage do not use MDS. A Ceph Metadata Server (ceph-mds) stores metadata on behalf of the Ceph Filesystem. Ceph Metadata Servers allow POSIX file system users to execute basic commands (like ls, find, etc.) without placing an enormous burden on the Ceph Storage Cluster.
 
 ```shell
-$ ceph-deploy mds create node3
+$ ceph-deploy mds create ceph-mon
 ```
 
+### ADD an Object Gateway
+
+Ceph Object Gateway is an object storage interface that provides a RESTful gateway to Ceph Storage Clusters. 
+
+### Test the Cluster 
+
+To store object data in Ceph, the client must:
+1. Specify a pool
+2. Set an object name
+
+Below is a sample to save `testfile.txt` which contains text of `Test data"`.
+```
+# create test data
+$ echo "Test data" > testfile.txt
+# create a pool
+$ ceph osd pool create mytest 8
+# put the data in the pool
+$ rados put test-object-1 testfile.txt --pool=mytest
+```
+
+To verify the data is saved:
+```shell
+$ sudo rados -p mytest ls
+```
+
+Locate the object:
+```shell
+$ sudo ceph osd map mytest test-object-1
+```
+
+And read the object into a file:
+```shell
+$ sudo rados -p mytest get test-object-1 out.txt
+$ cat out.txt
+Test data
+```
